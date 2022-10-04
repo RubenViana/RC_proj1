@@ -20,6 +20,7 @@
 #define TRUE 1
 
 #define BUF_SIZE 1
+#define ANS_FRAME_SIZE 5
 
 volatile int STOP = FALSE;
 
@@ -76,7 +77,7 @@ int main(int argc, char *argv[])
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 1;  // Blocking read until 1 chars received
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 0 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -98,10 +99,11 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Loop for input
-    unsigned char buf[BUF_SIZE + 1]; 
+    unsigned char buf[BUF_SIZE]; 
 
     rcv_st = START_RCV_ST;
-
+    int a_byte;
+    int c_byte;
 
     while (rcv_st != STOP_RCV_ST)
     {
@@ -120,19 +122,19 @@ int main(int argc, char *argv[])
 
         case FLAG_RCV_ST:
             if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-            else if (byte == A_RCV) rcv_st = A_RCV_ST;
+            else if (byte == A_RCV) {rcv_st = A_RCV_ST; a_byte = byte;}
             else rcv_st = START_RCV_ST;
             break;
 
         case A_RCV_ST:
             if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-            else if (byte == C_RCV_SET) rcv_st = C_RCV_ST;
+            else if (byte == C_RCV_SET) {rcv_st = C_RCV_ST; c_byte = byte;}
             else rcv_st = START_RCV_ST;
             break;
 
         case C_RCV_ST:
             if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-            else if (byte == BCC_RCV) rcv_st = BCC_RCV_ST;
+            else if (byte == a_byte^c_byte) rcv_st = BCC_RCV_ST;
             else rcv_st = START_RCV_ST;
             break;
         
@@ -147,13 +149,20 @@ int main(int argc, char *argv[])
                
             
     }
+    printf("SET_CMD RECEIVED\n");
 
-    printf("READ SET MESSAGE");
+    //write UA ans
+    unsigned char ua_ans[ANS_FRAME_SIZE];
+    ua_ans[0] = 0x7e;
+    ua_ans[1] = 0x03;
+    ua_ans[2] = 0x07;
+    ua_ans[3] = ua_ans[1] ^ ua_ans[2];
+    ua_ans[4] = 0x7e;
 
-    int bytes = write(fd, buf, BUF_SIZE);
-    printf("%d bytes written\n", bytes);
+    int bytes = write(fd, ua_ans, ANS_FRAME_SIZE);
+    printf("UA_ANS SENT\n");
 
-    sleep(1);
+    //sleep(1);
 
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
