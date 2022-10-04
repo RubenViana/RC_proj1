@@ -19,9 +19,18 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 256
+#define BUF_SIZE 1
 
 volatile int STOP = FALSE;
+
+#define FLAG_RCV 0x7e
+#define A_RCV 0x03
+#define C_RCV_SET 0x03
+#define BCC_RCV A_RCV ^ C_RCV_SET 
+
+
+enum RCV_STATE {START_RCV_ST, FLAG_RCV_ST, A_RCV_ST, C_RCV_ST, BCC_RCV_ST, STOP_RCV_ST} rcv_st;
+
 
 int main(int argc, char *argv[])
 {
@@ -89,18 +98,57 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Loop for input
-    unsigned char buf[BUF_SIZE]; 
+    unsigned char buf[BUF_SIZE + 1]; 
 
-    while (STOP == FALSE)
+    rcv_st = START_RCV_ST;
+
+
+    while (rcv_st != STOP_RCV_ST)
     {
         // Returns after 1 chars have been input
         int bytes = read(fd, buf, BUF_SIZE);
 
-        printf(":%s:%d\n", buf, bytes);        
-        if (buf[bytes] == '\0')
-            STOP = TRUE;
+        //printf("buf: %d\n", buf[0]);
+
+        int byte = buf[0];
+
+        switch (rcv_st)
+        {
+        case START_RCV_ST:
+            if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+            break;
+
+        case FLAG_RCV_ST:
+            if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+            else if (byte == A_RCV) rcv_st = A_RCV_ST;
+            else rcv_st = START_RCV_ST;
+            break;
+
+        case A_RCV_ST:
+            if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+            else if (byte == C_RCV_SET) rcv_st = C_RCV_ST;
+            else rcv_st = START_RCV_ST;
+            break;
+
+        case C_RCV_ST:
+            if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+            else if (byte == BCC_RCV) rcv_st = BCC_RCV_ST;
+            else rcv_st = START_RCV_ST;
+            break;
+        
+        case BCC_RCV_ST:
+            if (byte == FLAG_RCV) rcv_st = STOP_RCV_ST;
+            else rcv_st = START_RCV_ST;
+            break;
+
+        default:
+            break;
+        }
+               
+            
     }
 
+    printf("READ SET MESSAGE");
 
     int bytes = write(fd, buf, BUF_SIZE);
     printf("%d bytes written\n", bytes);
