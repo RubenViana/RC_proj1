@@ -1,12 +1,14 @@
 #include "frame.h"
-#include <signal.h>
+#include "link_layer.h"
 #include <stdio.h>
 #include <unistd.h>
+#include <signal.h>
+
+extern int fd;
+extern LinkLayer connectionParameters;
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
-
-extern int fd;
 
 // Alarm function handler
 void alarmHandler(int signal)
@@ -34,85 +36,17 @@ int writeFrame (unsigned int A_RCV, unsigned int C_RCV){
     return -1;
 }
 
-int writeSetFrame_readUaFrame () {
-
-    // Set alarm function handler
-    (void)signal(SIGALRM, alarmHandler);
-
-    unsigned char buf[BUF_BYTE_SIZE]; 
-
-    RCV_STATE rcv_st = START_RCV_ST;
-    int a_byte;
-    int c_byte;
-
-    while ((rcv_st != STOP_RCV_ST) && (alarmCount < 4))
-    {
-        
-
-        if (alarmEnabled == FALSE)
-        {
-            writeFrame(A_RCV_cmdT_ansR,C_RCV_SET);
-            alarm(3); // Set alarm to be triggered in 3s
-            alarmEnabled = TRUE;
-        }
-
-        int bytes = read(fd, buf, BUF_BYTE_SIZE);
-
-        if (bytes != 0){
-            int byte = buf[0];
-
-            switch (rcv_st)
-            {
-            case START_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                break;
-
-            case FLAG_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == A_RCV_cmdT_ansR) {rcv_st = A_RCV_ST; a_byte = byte;}
-                else rcv_st = START_RCV_ST;
-                break;
-
-            case A_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == C_RCV_UA) {rcv_st = C_RCV_ST; c_byte = byte;}
-                else rcv_st = START_RCV_ST;
-                break;
-
-            case C_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == (a_byte^c_byte)) rcv_st = BCC_RCV_ST;
-                else rcv_st = START_RCV_ST;
-                break;
-            
-            case BCC_RCV_ST:
-                if (byte == FLAG_RCV) {rcv_st = STOP_RCV_ST; alarm(0); printf("FRAME RECEIVED  C->%x\n",C_RCV_UA);return 1;}
-                else rcv_st = START_RCV_ST;
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-    return -1;
-}
-
 int readFrame (unsigned int A_RCV, unsigned int C_RCV){
 
     unsigned char buf[BUF_BYTE_SIZE]; 
 
     RCV_STATE rcv_st = START_RCV_ST;
-    int a_byte;
-    int c_byte;
 
     while (rcv_st != STOP_RCV_ST)
     {
-        // Returns after 1 chars have been input
         int bytes = read(fd, buf, BUF_BYTE_SIZE);
 
-        //printf("buf: %d\n", buf[0]);
-        if (bytes != 0){
+        if (bytes > 0){
             int byte = buf[0];
 
             switch (rcv_st)
@@ -123,19 +57,19 @@ int readFrame (unsigned int A_RCV, unsigned int C_RCV){
 
             case FLAG_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == A_RCV) {rcv_st = A_RCV_ST; a_byte = byte;}
+                else if (byte == A_RCV) rcv_st = A_RCV_ST;
                 else rcv_st = START_RCV_ST;
                 break;
 
             case A_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == C_RCV) {rcv_st = C_RCV_ST; c_byte = byte;}
+                else if (byte == C_RCV) rcv_st = C_RCV_ST;
                 else rcv_st = START_RCV_ST;
                 break;
 
             case C_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == (a_byte^c_byte)) rcv_st = BCC_RCV_ST;
+                else if (byte == (A_RCV^C_RCV)) rcv_st = BCC_RCV_ST;
                 else rcv_st = START_RCV_ST;
                 break;
             
@@ -150,5 +84,69 @@ int readFrame (unsigned int A_RCV, unsigned int C_RCV){
         }
     }
     printf("FRAME RECEIVED  C->%x\n",C_RCV);
+    return 1;
+}
+
+
+
+int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A_RCV_r, unsigned int C_RCV_r){
+    // Set alarm function handler
+    (void)signal(SIGALRM, alarmHandler);
+
+    unsigned char buf[BUF_BYTE_SIZE]; 
+
+    RCV_STATE rcv_st = START_RCV_ST;
+
+    while ((rcv_st != STOP_RCV_ST) && (alarmCount < connectionParameters.nRetransmissions))
+    {
+        if (alarmEnabled == FALSE)
+        {
+            writeFrame(A_RCV_w,C_RCV_w);
+            alarm(connectionParameters.timeout);
+            alarmEnabled = TRUE;
+            rcv_st = START_RCV_ST;
+            printf("-----\n");
+        }
+
+        int bytes = read(fd, buf, BUF_BYTE_SIZE);
+
+        if (bytes > 0){
+            int byte = buf[0];
+
+            switch (rcv_st)
+            {
+            case START_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                break;
+
+            case FLAG_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == A_RCV_r) rcv_st = A_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+
+            case A_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == C_RCV_r) rcv_st = C_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+
+            case C_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == (A_RCV_r^C_RCV_r)) rcv_st = BCC_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+            
+            case BCC_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = STOP_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+
+            default:
+                break;
+            }
+        }
+    }
+    printf("FRAME RECEIVED  C->%x\n",C_RCV_r);
     return 1;
 }

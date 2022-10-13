@@ -12,13 +12,16 @@
 #include <termios.h>
 #include <unistd.h>
 
+
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
+
 
 int fd;
 LinkLayer connectionParameters;
 struct termios oldtio;
 struct termios newtio;
+
 
 ////////////////////////////////////////////////
 // LLOPEN
@@ -35,9 +38,6 @@ int llopen(LinkLayer conParameters)
         exit(-1);
     }
 
-    struct termios oldtio;
-    struct termios newtio;
-
     // Save current port settings
     if (tcgetattr(fd, &oldtio) == -1)
     {
@@ -48,7 +48,7 @@ int llopen(LinkLayer conParameters)
     // Clear struct for new port settings
     memset(&newtio, 0, sizeof(newtio));
 
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = connectionParameters.baudRate | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -77,10 +77,8 @@ int llopen(LinkLayer conParameters)
     if (connectionParameters.role == LlRx){
         if (readFrame(A_RCV_cmdT_ansR,C_RCV_SET) == 1) return writeFrame(A_RCV_cmdT_ansR, C_RCV_UA);
     }
-    else if (connectionParameters.role == LlTx){
-        if (writeSetFrame_readUaFrame() == 1) return 1;
-    }
-
+    else if (connectionParameters.role == LlTx) return writeReadWithRetr(A_RCV_cmdT_ansR, C_RCV_SET, A_RCV_cmdT_ansR, C_RCV_UA);
+    
     return -1;
 }
 
@@ -137,6 +135,5 @@ int llclose(int showStatistics)
                     return 1;
                 }
     }
-
     return -1;
 }
