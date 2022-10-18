@@ -6,9 +6,6 @@
 #define BUF_BYTE_SIZE 1
 #define CMD_ANS_FRAME_SIZE 5
 
-#define FALSE 0
-#define TRUE 1
-
 #define FLAG_RCV 0x7e
 #define A_RCV_cmdT_ansR 0x03
 #define A_RCV_cmdR_ansT 0x01
@@ -27,6 +24,6 @@ int changeState (int byte, unsigned int A_RCV, unsigned int C_RCV);
 
 int writeReadWithRetr (unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A_RCV_r, unsigned int C_RCV_r);
 
-
+void alarmHandler(int signal);
 
 #endif // _FRAME_H_

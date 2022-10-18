@@ -7,17 +7,9 @@
 extern int fd;
 extern LinkLayer connectionParameters;
 
-int alarmEnabled = FALSE;
-int alarmCount = 0;
+extern int alarmEnabled;
+extern int alarmCount;
 
-// Alarm function handler
-void alarmHandler(int signal)
-{
-    alarmEnabled = FALSE;
-    alarmCount++;
-
-    printf("Alarm #%d\n", alarmCount);
-}
 
 int writeFrame (unsigned int A_RCV, unsigned int C_RCV){
 
@@ -90,14 +82,12 @@ int readFrame (unsigned int A_RCV, unsigned int C_RCV){
 
 
 int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A_RCV_r, unsigned int C_RCV_r){
-    // Set alarm function handler
-    (void)signal(SIGALRM, alarmHandler);
 
-    unsigned char buf[BUF_BYTE_SIZE]; 
+    unsigned char buf[256]; 
 
     RCV_STATE rcv_st = START_RCV_ST;
 
-    while ((rcv_st != STOP_RCV_ST) && (alarmCount < connectionParameters.nRetransmissions))
+    while (alarmCount < connectionParameters.nRetransmissions)
     {
         if (alarmEnabled == FALSE)
         {
@@ -105,7 +95,6 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
             alarm(connectionParameters.timeout);
             alarmEnabled = TRUE;
             rcv_st = START_RCV_ST;
-            printf("-----\n");
         }
 
         int bytes = read(fd, buf, BUF_BYTE_SIZE);
@@ -138,7 +127,7 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
                 break;
             
             case BCC_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = STOP_RCV_ST;
+                if (byte == FLAG_RCV) {rcv_st = STOP_RCV_ST; printf("FRAME RECEIVED  C->%x\n",C_RCV_r); return 1;}
                 else rcv_st = START_RCV_ST;
                 break;
 
@@ -147,6 +136,6 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
             }
         }
     }
-    printf("FRAME RECEIVED  C->%x\n",C_RCV_r);
-    return 1;
+    printf("NUMBER OF RETRANSMISSIONS EXCEEDED\n");
+    return -1;
 }

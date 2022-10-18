@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "application_layer.h"
+#include "alarm.h"
 
 #define BAUDRATE 9600
 #define N_TRIES 3
@@ -16,6 +17,8 @@
 //   $3: filename
 int main(int argc, char *argv[])
 {
+    (void)signal(SIGALRM, alarmHandler);
+
     if (argc < 4)
     {
         printf("Usage: %s /dev/ttySxx tx|rx filename\n", argv[0]);
