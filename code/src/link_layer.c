@@ -75,7 +75,7 @@ int llopen(LinkLayer conParameters)
     if (connectionParameters.role == LlRx){
         if (readFrame(A_RCV_cmdT_ansR,C_RCV_SET) == 1) return writeFrame(A_RCV_cmdT_ansR, C_RCV_UA);
     }
-    else if (connectionParameters.role == LlTx) return writeReadWithRetr(A_RCV_cmdT_ansR, C_RCV_UA, A_RCV_cmdT_ansR, C_RCV_UA);
+    else if (connectionParameters.role == LlTx) return writeReadWithRetr(A_RCV_cmdT_ansR, C_RCV_SET, A_RCV_cmdT_ansR, C_RCV_UA);
     
     return -1;
 }
