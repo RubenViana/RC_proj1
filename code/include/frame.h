@@ -30,4 +30,8 @@ int writeIFrame (unsigned char* frame, int frameSize);
 
 int readIFrame (unsigned char* frame);
 
+unsigned char* controlPackageI (int st, int fileSize, const char* fileName, int fileNameSize, int* controlPackageSize);
+
+unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize);
+
 #endif // _FRAME_H_

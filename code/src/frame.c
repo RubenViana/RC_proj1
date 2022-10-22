@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern int fd;
 extern LinkLayer connectionParameters;
@@ -270,4 +272,40 @@ int readIFrame (unsigned char* frame) {
     }
     printf("FRAME RECEIVED I\n");
     return (i - 1);
+}
+
+
+unsigned char* controlPackageI (int st, int fileSize, const char* fileName, int fileNameSize, int* controlPackageSize) {
+    *controlPackageSize = 9 * sizeof(unsigned char) + fileNameSize;
+    unsigned char* package = (unsigned char*)malloc(*controlPackageSize);
+
+    if (st == 0) package[0] = 0x02;
+    else package[0] = 0x03;
+    package[1] = 0x00; //t1
+    package[2] = 0x04; //l1
+    package[3] = (fileSize >> 24) & 0xff;
+    package[4] = (fileSize >> 16) & 0xff;
+    package[5] = (fileSize >> 8) & 0xff;
+    package[6] = fileSize & 0xff;
+    package[7] = 0x01; //t2
+    package[8] = fileNameSize;
+    for (int i = 0; i < fileNameSize; i++) package[9 + i] = fileName[i];
+
+    return package;
+}
+
+unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize){
+    unsigned char* package = (unsigned char*)malloc(*packetSize + 4);
+    package[0] = 0x01;
+    package[1] = 0; //nº messages % 255
+    package[2] = 0; //l2
+    package[3] = 0; //l1
+
+    memcpy(package + 4, buf, *packetSize);
+
+    *packetSize += 4;
+
+    //missing some parameters
+
+    return package;
 }
