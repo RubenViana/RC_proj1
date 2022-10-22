@@ -11,6 +11,7 @@ extern LinkLayer connectionParameters;
 
 extern int alarmEnabled;
 extern int alarmCount;
+extern int sequenceNumberI;
 
 
 int writeFrame (unsigned int A_RCV, unsigned int C_RCV){
@@ -156,22 +157,38 @@ unsigned char bcc_2(unsigned char* frame, int length) {
   return bcc2;
 }
 
+int check_bbc_2(unsigned char* frame, int length) {
+    unsigned char bcc2 = frame[0];
+
+    for(int i = 1; i < length; i++){
+        bcc2 = bcc2 ^ frame[i];
+    }
+
+    if (bcc2 == frame[length - 1]) return TRUE;
+    else return FALSE;
+}
+
 int writeIFrame (unsigned char* frame, int frameSize) {
     unsigned char buf[256]; 
 
     RCV_STATE rcv_st = START_RCV_ST;
+
+    int retr = FALSE;
+
+    unsigned char C;
 
     alarmCount = 0;
     alarmEnabled = FALSE;
 
     while (alarmCount < connectionParameters.nRetransmissions && rcv_st != STOP_RCV_ST)
     {
-        if (alarmEnabled == FALSE)
+        if (alarmEnabled == FALSE || retr == TRUE)
         {
             write(fd, frame, frameSize);
             printf("FRAME SENT I\n");
             alarm(connectionParameters.timeout);
             alarmEnabled = TRUE;
+            retr = FALSE;
             rcv_st = START_RCV_ST;
         }
 
@@ -194,18 +211,34 @@ int writeIFrame (unsigned char* frame, int frameSize) {
 
             case A_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == C_RCV_RR) rcv_st = C_RCV_ST; //NOT FINISHED, INCOMPLETE
+                else if ((byte == C_RCV_RR1) || (byte == C_RCV_RR0) || (byte == C_RCV_REJ0) || (byte == C_RCV_REJ1)){
+                    rcv_st = C_RCV_ST;
+                    C = byte;
+                }
                 else rcv_st = START_RCV_ST;
                 break;
 
             case C_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == (A_RCV_cmdT_ansR^C_RCV_RR)) rcv_st = BCC_RCV_ST;
+                else if (byte == (A_RCV_cmdT_ansR^C)) rcv_st = BCC_RCV_ST;
                 else rcv_st = START_RCV_ST;
                 break;
             
             case BCC_RCV_ST:
-                if (byte == FLAG_RCV) {rcv_st = STOP_RCV_ST; printf("FRAME RECEIVED  C->%x\n",C_RCV_RR); return 1;}
+                if (byte == FLAG_RCV) {
+                    //rcv_st = STOP_RCV_ST;
+                    if ((C == C_RCV_RR0 && sequenceNumberI == 1) || (C == C_RCV_RR1 && sequenceNumberI == 0)){
+                        printf("FRAME RECEIVED  C-> RR\n");
+                        sequenceNumberI ^= 1;
+                        return 1;
+                    }
+                    else if ((C == C_RCV_REJ0) || (C == C_RCV_REJ1)){
+                        printf("FRAME RECEIVED  C-> REJ\n");
+                        retr = TRUE;
+                        alarmCount++;
+                        break;
+                    }
+                }
                 else rcv_st = START_RCV_ST;
                 break;
 
@@ -222,6 +255,8 @@ int readIFrame (unsigned char* frame) {
 
     int i = 0;
     
+    unsigned char C;
+
     unsigned char buf[256]; 
 
     RCV_STATE rcv_st = START_RCV_ST;
@@ -247,18 +282,45 @@ int readIFrame (unsigned char* frame) {
 
             case A_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == 0) rcv_st = C_RCV_ST; // INCOMPLETE, verificar N(s)
+                else if (byte == C_RCV_I0){
+                    rcv_st = C_RCV_ST;
+                    sequenceNumberI = 0;
+                    C = byte;
+                }
+                else if (byte == C_RCV_I1){
+                    rcv_st = C_RCV_ST;
+                    sequenceNumberI = 1;
+                    C = byte;
+                }
                 else rcv_st = START_RCV_ST;
                 break;
 
             case C_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == (A_RCV_cmdT_ansR^0)) rcv_st = BCC_RCV_ST;
+                else if (byte == (A_RCV_cmdT_ansR^C)) rcv_st = BCC_RCV_ST;
                 else rcv_st = START_RCV_ST;
                 break;
             
             case BCC_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = STOP_RCV_ST;
+                if (byte == FLAG_RCV) {
+                    if (frame[i - 2] == 0 || i < 400){//check_BBC2 with destuffing missing here !
+                        if (sequenceNumberI == 0) writeFrame(A_RCV_cmdT_ansR, C_RCV_RR1);
+                        else writeFrame(A_RCV_cmdT_ansR, C_RCV_RR0);
+                        
+                        rcv_st = STOP_RCV_ST;
+                        printf("RR SENT\n");
+                        return (i - 1);
+
+                    }
+                    else {
+                        if (sequenceNumberI == 0) writeFrame(A_RCV_cmdT_ansR, C_RCV_REJ1);
+                        else writeFrame(A_RCV_cmdT_ansR, C_RCV_REJ0);
+
+                        rcv_st = STOP_RCV_ST;
+                        printf("REJ SENT\n");
+                        return -1;
+                    }
+                }
                 else {
                     //printf("i -> %d\n",i);
                     frame[i++] = byte; 

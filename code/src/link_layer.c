@@ -20,6 +20,8 @@ LinkLayer connectionParameters;
 struct termios oldtio;
 struct termios newtio;
 
+int sequenceNumberI = 0;
+
 
 ////////////////////////////////////////////////
 // LLOPEN
@@ -83,12 +85,13 @@ int llwrite(const unsigned char *buf, int bufSize)
     //set I fields
     buffer[0] = FLAG_RCV;
     buffer[1] = A_RCV_cmdT_ansR;
-    buffer[2] = 0; // or 1
+    if (sequenceNumberI == 0) buffer[2] = C_RCV_I0;
+    else buffer[2] = C_RCV_I1;
     buffer[3] = buffer[1]^buffer[2];
 
     for (int i = 0; i < bufSize; i++) buffer[i + 4] = buf[i];
 
-    buffer[6 + bufSize - 2] = 0;   //bbc_2(buf, bufSize);
+    buffer[6 + bufSize - 2] = 0; //bcc_2(buf, bufSize);
     buffer[6 + bufSize - 1] = FLAG_RCV;
 
     //byte stuffing goes here
@@ -108,8 +111,6 @@ int llread(unsigned char *packet)
     int bytes = readIFrame (packet);
 
     //byte destuffing goes here
-
-    writeFrame(A_RCV_cmdT_ansR,C_RCV_RR);
 
     return bytes;
 }

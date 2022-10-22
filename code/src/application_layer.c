@@ -79,19 +79,20 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         if ((file = fopen(filename,"w")) == NULL) printf("Cannot open file\n");
 
-        while ((bytesRead = llread (packet)) > 0){
-            if (packet[0] == 0x02){
-                printf("receive start data packet\n");  //NOT FINISHED
+        while (1){
+            if ((bytesRead = llread (packet)) > 0){
+                if (packet[0] == 0x02){
+                    printf("receive start data packet\n");  //NOT FINISHED
+                }
+                else if (packet[0] == 0x03){
+                    printf("received end data packet\n");
+                    break;
+                }
+                else if (packet[0] == 0x01){//NOT IMPLEMENTED
+                    printf("received header data packet\n");
+                    fwrite(packet + 4, sizeof(unsigned char), bytesRead, file);
+                }
             }
-            else if (packet[0] == 0x03){
-                printf("received end data packet\n");
-                break;
-            }
-            else if (packet[0] == 0x01){//NOT IMPLEMENTED
-                printf("received header data packet\n");
-                fwrite(packet + 4, sizeof(unsigned char), bytesRead, file);
-            }
-
             printf("%d bytes received\n", bytesRead);
             
         }

@@ -12,8 +12,12 @@
 #define C_RCV_SET 0x03
 #define C_RCV_UA 0x07
 #define C_RCV_DISC 0x0b
-#define C_RCV_RR 0x05
-#define C_RCV_REJ 0x01
+#define C_RCV_RR0 0x05
+#define C_RCV_RR1 0x85
+#define C_RCV_I0 0x00
+#define C_RCV_I1 0x40
+#define C_RCV_REJ0 0x01
+#define C_RCV_REJ1 0x81
 
 
 typedef enum {START_RCV_ST, FLAG_RCV_ST, A_RCV_ST, C_RCV_ST, BCC_RCV_ST, STOP_RCV_ST} RCV_STATE;
@@ -25,6 +29,8 @@ int readFrame (unsigned int A_RCV, unsigned int C_RCV);
 int writeReadWithRetr (unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A_RCV_r, unsigned int C_RCV_r);
 
 unsigned char bcc_2 (unsigned char* frame, int length);
+
+int check_bbc_2(unsigned char* frame, int length);
 
 int writeIFrame (unsigned char* frame, int frameSize);
 
