@@ -83,11 +83,14 @@ int readFrame (unsigned int A_RCV, unsigned int C_RCV){
 
 int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A_RCV_r, unsigned int C_RCV_r){
 
+    alarmCount = 0;
+    alarmEnabled = FALSE;
+
     unsigned char buf[256]; 
 
     RCV_STATE rcv_st = START_RCV_ST;
 
-    while (alarmCount < connectionParameters.nRetransmissions)
+    while (alarmCount < connectionParameters.nRetransmissions && rcv_st != STOP_RCV_ST)
     {
         if (alarmEnabled == FALSE)
         {
@@ -138,4 +141,133 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
     }
     printf("NUMBER OF RETRANSMISSIONS EXCEEDED\n");
     return -1;
+}
+
+unsigned char bcc_2(unsigned char* frame, int length) {
+
+  unsigned char bcc2 = frame[0];
+
+  for(int i = 1; i < length; i++){
+    bcc2 = bcc2 ^ frame[i];
+  }
+
+  return bcc2;
+}
+
+int writeIFrame (unsigned char* frame, int frameSize) {
+    unsigned char buf[256]; 
+
+    RCV_STATE rcv_st = START_RCV_ST;
+
+    alarmCount = 0;
+    alarmEnabled = FALSE;
+
+    while (alarmCount < connectionParameters.nRetransmissions && rcv_st != STOP_RCV_ST)
+    {
+        if (alarmEnabled == FALSE)
+        {
+            write(fd, frame, frameSize);
+            printf("FRAME SENT I\n");
+            alarm(connectionParameters.timeout);
+            alarmEnabled = TRUE;
+            rcv_st = START_RCV_ST;
+        }
+
+        int bytes = read(fd, buf, BUF_BYTE_SIZE);
+
+        if (bytes > 0){
+            int byte = buf[0];
+
+            switch (rcv_st)
+            {
+            case START_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                break;
+
+            case FLAG_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == A_RCV_cmdT_ansR) rcv_st = A_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+
+            case A_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == C_RCV_RR) rcv_st = C_RCV_ST; //NOT FINISHED, INCOMPLETE
+                else rcv_st = START_RCV_ST;
+                break;
+
+            case C_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == (A_RCV_cmdT_ansR^C_RCV_RR)) rcv_st = BCC_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+            
+            case BCC_RCV_ST:
+                if (byte == FLAG_RCV) {rcv_st = STOP_RCV_ST; printf("FRAME RECEIVED  C->%x\n",C_RCV_RR); return 1;}
+                else rcv_st = START_RCV_ST;
+                break;
+
+            default:
+                break;
+            }
+        }
+    }
+    printf("NUMBER OF RETRANSMISSIONS EXCEEDED\n");
+    return -1;
+}
+
+int readIFrame (unsigned char* frame) {
+
+    int i = 0;
+    
+    unsigned char buf[256]; 
+
+    RCV_STATE rcv_st = START_RCV_ST;
+
+    while (rcv_st != STOP_RCV_ST)
+    {
+        int bytes = read(fd, buf, BUF_BYTE_SIZE);
+
+        if (bytes > 0){
+            int byte = buf[0];
+
+            switch (rcv_st)
+            {
+            case START_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                break;
+
+            case FLAG_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == A_RCV_cmdT_ansR) rcv_st = A_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+
+            case A_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == 0) rcv_st = C_RCV_ST; // INCOMPLETE, verificar N(s)
+                else rcv_st = START_RCV_ST;
+                break;
+
+            case C_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                else if (byte == (A_RCV_cmdT_ansR^0)) rcv_st = BCC_RCV_ST;
+                else rcv_st = START_RCV_ST;
+                break;
+            
+            case BCC_RCV_ST:
+                if (byte == FLAG_RCV) rcv_st = STOP_RCV_ST;
+                else {
+                    //printf("i -> %d\n",i);
+                    frame[i++] = byte; 
+                }
+                break;
+
+            default:
+                break;
+            }
+        }
+    }
+    printf("FRAME RECEIVED I\n");
+    return (i - 1);
 }

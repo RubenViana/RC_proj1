@@ -12,7 +12,9 @@
 #define C_RCV_SET 0x03
 #define C_RCV_UA 0x07
 #define C_RCV_DISC 0x0b
-//#define BCC_RCV A_RCV ^ C_RCV_SET
+#define C_RCV_RR 0x05
+#define C_RCV_REJ 0x01
+
 
 typedef enum {START_RCV_ST, FLAG_RCV_ST, A_RCV_ST, C_RCV_ST, BCC_RCV_ST, STOP_RCV_ST} RCV_STATE;
 
@@ -20,10 +22,12 @@ int writeFrame (unsigned int A_RCV, unsigned int C_RCV);
 
 int readFrame (unsigned int A_RCV, unsigned int C_RCV);
 
-int changeState (int byte, unsigned int A_RCV, unsigned int C_RCV);
-
 int writeReadWithRetr (unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A_RCV_r, unsigned int C_RCV_r);
 
-void alarmHandler(int signal);
+unsigned char bcc_2 (unsigned char* frame, int length);
+
+int writeIFrame (unsigned char* frame, int frameSize);
+
+int readIFrame (unsigned char* frame);
 
 #endif // _FRAME_H_

@@ -55,13 +55,6 @@ int llopen(LinkLayer conParameters)
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
     newtio.c_cc[VMIN] = 0;  // Blocking read until 0 chars received
 
-    // VTIME e VMIN should be changed in order to protect with a
-    // timeout the reception of the following character(s)
-
-    // Now clean the line and activate the settings for the port
-    // tcflush() discards data written to the object referred to
-    // by fd but not transmitted, or data received but not read,
-    // depending on the value of queue_selector:
     //   TCIFLUSH - flushes data received but not read.
     tcflush(fd, TCIOFLUSH);
 
@@ -84,20 +77,41 @@ int llopen(LinkLayer conParameters)
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
-{
-    // TODO
+{   
+    unsigned char buffer[6 + bufSize];
 
-    return 0;
+    //set I fields
+    buffer[0] = FLAG_RCV;
+    buffer[1] = A_RCV_cmdT_ansR;
+    buffer[2] = 0; // or 1
+    buffer[3] = buffer[1]^buffer[2];
+
+    for (int i = 0; i < bufSize; i++) buffer[i + 4] = buf[i];
+
+    buffer[6 + bufSize - 2] = 0;   //bbc_2(buf, bufSize);
+    buffer[6 + bufSize - 1] = FLAG_RCV;
+
+    //byte stuffing goes here
+
+
+    if (writeIFrame(buffer ,sizeof(buffer)) == 1) return bufSize;
+
+    return -1;
 }
 
 ////////////////////////////////////////////////
 // LLREAD
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
-{
-    // TODO
+{   
 
-    return 0;
+    int bytes = readIFrame (packet);
+
+    //byte destuffing goes here
+
+    writeFrame(A_RCV_cmdT_ansR,C_RCV_RR);
+
+    return bytes;
 }
 
 ////////////////////////////////////////////////
@@ -120,18 +134,17 @@ int llclose(int showStatistics)
                 }
     }
     else if (connectionParameters.role == LlTx){
-        if (writeFrame(A_RCV_cmdT_ansR,C_RCV_DISC) == 1) 
-            if (readFrame(A_RCV_cmdT_ansR, C_RCV_DISC) == 1)
-                if (writeFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
-                    // Restore the old port settings
-                    if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
-                    {
-                        perror("tcsetattr");
-                        exit(-1);
-                    }
-                    close(fd);
-                    return 1;
+        if (writeReadWithRetr(A_RCV_cmdT_ansR,C_RCV_DISC,A_RCV_cmdT_ansR,C_RCV_DISC) == 1) 
+            if (writeFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
+                // Restore the old port settings
+                if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+                {
+                    perror("tcsetattr");
+                    exit(-1);
                 }
+                close(fd);
+                return 1;
+            }
     }
     return -1;
 }
