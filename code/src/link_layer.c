@@ -91,15 +91,14 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     for (int i = 0; i < bufSize; i++) buffer[i + 4] = buf[i];
 
-    buffer[6 + bufSize - 2] = 0; //bcc_2(buf, bufSize);
-    buffer[6 + bufSize - 1] = FLAG_RCV;
+    buffer[bufSize + 4] = bcc_2(buf, bufSize);
+    buffer[bufSize + 5] = FLAG_RCV;
 
-    //byte stuffing goes here
+    unsigned int bufStuffedSize = byteStuffing (buffer, bufSize);
 
+    if (writeIFrame(buffer ,bufStuffedSize) == 1) return bufStuffedSize;
 
-    if (writeIFrame(buffer ,sizeof(buffer)) == 1) return bufSize;
-
-    return -1;
+    return 0;
 }
 
 ////////////////////////////////////////////////
@@ -107,12 +106,105 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {   
+    int numBytes;
+    int readValue;
+    int isBufferFull = FALSE;
 
-    int bytes = readIFrame (packet);
+    unsigned char frame[1000];
 
-    //byte destuffing goes here
+    while (!isBufferFull){
+        readValue = readIFrame(frame);
+        printf("FRAME RECEIVED I\n");
 
-    return bytes;
+        numBytes = byteDestuffing(frame, readValue);
+
+
+        int controlByteRead;
+        if (frame[2] == C_RCV_I0)
+            controlByteRead = 0;
+        else if (frame[2] == C_RCV_I1)
+            controlByteRead = 1;
+
+        unsigned char responseByte;
+        if (frame[numBytes - 2] == bcc_2(&frame[DATA_START], numBytes - 6))
+        { // if bcc2 is correct
+
+        if (controlByteRead != sequenceNumberI)
+        { // duplicated trama; discard information
+
+            if (controlByteRead == 0)
+            {
+            responseByte = C_RCV_RR1;
+            sequenceNumberI = 1;
+            }
+            else
+            {
+            responseByte = C_RCV_RR0;
+            sequenceNumberI = 0;
+            }
+        }
+        else
+        { // new frame
+
+            // passes information to the buffer
+            for (int i = 0; i < numBytes - 6; i++)
+            {
+            packet[i] = frame[DATA_START + i];
+            }
+
+            isBufferFull = TRUE;
+
+            if (controlByteRead == 0)
+            {
+            responseByte = C_RCV_RR1;
+            sequenceNumberI = 1;
+            }
+            else
+            {
+            responseByte = C_RCV_RR0;
+            sequenceNumberI = 0;
+            }
+        }
+        }
+        else
+        { // if bcc2 is not correct
+        if (controlByteRead != sequenceNumberI)
+        { // duplicated trama
+
+            // ignores frame data
+
+            if (controlByteRead == 0)
+            {
+            responseByte = C_RCV_RR1;
+            sequenceNumberI = 1;
+            }
+            else
+            {
+            responseByte = C_RCV_RR0;
+            sequenceNumberI = 0;
+            }
+        }
+        else
+        { // new trama
+
+            // ignores frame data, because of error
+
+            if (controlByteRead == 0)
+            {
+            responseByte = C_RCV_REJ0;
+            sequenceNumberI = 0;
+            }
+            else
+            {
+            responseByte = C_RCV_REJ1;
+            sequenceNumberI = 1;
+            }
+        }
+        }
+
+        writeFrame(A_RCV_cmdT_ansR, responseByte);
+    }
+    return (numBytes - 6);
 }
 
 ////////////////////////////////////////////////

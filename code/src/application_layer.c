@@ -31,7 +31,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         int file;
         unsigned char buf[1000];
-        int total;
+        int totalSent;
         
         if ((file = open(filename,O_RDONLY)) == -1) printf("Cannot open file\n");
 
@@ -50,25 +50,20 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char* start = controlPackageI(0, fileSize, filename, filenameSize, &controlPacketSize);
         unsigned char* end = controlPackageI(1, fileSize, filename, filenameSize, &controlPacketSize);
 
-        int t;
-        t = open("test.gif",O_WRONLY);                      //for testing while not finish
-        llwrite(start, sizeof(start));
-
         int bytesRead;
-        while ((bytesRead = read(file, buf, 400)) > 0){
-            write(t, buf, bytesRead);//for testing
+        
+        llwrite(start, sizeof(start));
+        while ((bytesRead = read(file, buf, 256)) > 0){
             unsigned char* data = dataPackageI(buf, fileSize, &bytesRead);
             int bytesWrite = llwrite(data, bytesRead);
-            printf("%d bytes sent\n", bytesWrite);
-            total += bytesWrite;
+            //printf("%d bytes sent\n", bytesWrite);
+            totalSent += bytesWrite;
         }
         close(file);
 
         llwrite(end, sizeof(end));
-
-        close(t);
         
-        printf("TOTAL -> %d",total);
+        printf("total bytes sent: %d", totalSent);
     }
 
     else if (ll.role == LlRx) {
@@ -77,8 +72,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int file;
         unsigned char packet[1000];
         int bytesRead;
+        int totalReceived;
 
-        if ((file = open(filename,O_WRONLY)) == -1) printf("Cannot open file\n");
+        if ((file = open(filename,O_WRONLY | O_CREAT)) == -1) printf("Cannot open file\n");
 
         while (1){
             if ((bytesRead = llread (packet)) > 0){
@@ -91,13 +87,16 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 }
                 else if (packet[0] == 0x01){//NOT IMPLEMENTED
                     printf("received header data packet\n");
-                    write(file, packet + 4, bytesRead);
+                    write(file, &packet[4], bytesRead - 4);
                 }
+                //printf("%d bytes received\n", bytesRead);
+                totalReceived += bytesRead;
             }
-            printf("%d bytes received\n", bytesRead);
+
             
         }
         close(file);
+        printf("total bytes received: %d", totalReceived);
     }
 
 

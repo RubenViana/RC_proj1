@@ -13,7 +13,6 @@ extern int alarmEnabled;
 extern int alarmCount;
 extern int sequenceNumberI;
 
-
 int writeFrame (unsigned int A_RCV, unsigned int C_RCV){
 
     unsigned char frame[CMD_ANS_FRAME_SIZE];
@@ -146,7 +145,7 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
     return -1;
 }
 
-unsigned char bcc_2(unsigned char* frame, int length) {
+unsigned char bcc_2(const unsigned char* frame, int length) {
 
   unsigned char bcc2 = frame[0];
 
@@ -228,12 +227,12 @@ int writeIFrame (unsigned char* frame, int frameSize) {
                 if (byte == FLAG_RCV) {
                     //rcv_st = STOP_RCV_ST;
                     if ((C == C_RCV_RR0 && sequenceNumberI == 1) || (C == C_RCV_RR1 && sequenceNumberI == 0)){
-                        printf("FRAME RECEIVED  C-> RR\n");
+                        printf("FRAME RECEIVED RR\n");
                         sequenceNumberI ^= 1;
                         return 1;
                     }
                     else if ((C == C_RCV_REJ0) || (C == C_RCV_REJ1)){
-                        printf("FRAME RECEIVED  C-> REJ\n");
+                        printf("FRAME RECEIVED REJ\n");
                         retr = TRUE;
                         alarmCount++;
                         break;
@@ -254,72 +253,55 @@ int writeIFrame (unsigned char* frame, int frameSize) {
 int readIFrame (unsigned char* frame) {
 
     int i = 0;
-    
-    unsigned char C;
 
-    unsigned char buf[256]; 
+    unsigned char byte; 
 
     RCV_STATE rcv_st = START_RCV_ST;
 
     while (rcv_st != STOP_RCV_ST)
     {
-        int bytes = read(fd, buf, BUF_BYTE_SIZE);
+        int bytes = read(fd, &byte, sizeof(unsigned char));
 
         if (bytes > 0){
-            int byte = buf[0];
 
             switch (rcv_st)
             {
             case START_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                i = 0;
+                if (byte == FLAG_RCV) {rcv_st = FLAG_RCV_ST; frame[i++] = byte;}
                 break;
 
             case FLAG_RCV_ST:
                 if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == A_RCV_cmdT_ansR) rcv_st = A_RCV_ST;
-                else rcv_st = START_RCV_ST;
+                else if (byte == A_RCV_cmdT_ansR) {rcv_st = A_RCV_ST; frame[i++] = byte;}
+                else {rcv_st = START_RCV_ST; i = (int) rcv_st;}
                 break;
 
             case A_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
+                if (byte == FLAG_RCV) {rcv_st = FLAG_RCV_ST; i = (int) rcv_st;}
                 else if (byte == C_RCV_I0){
                     rcv_st = C_RCV_ST;
-                    sequenceNumberI = 0;
-                    C = byte;
+                    //sequenceNumberI = 0;
+                    frame[i++] = byte;
                 }
                 else if (byte == C_RCV_I1){
                     rcv_st = C_RCV_ST;
-                    sequenceNumberI = 1;
-                    C = byte;
+                    //sequenceNumberI = 1;
+                    frame[i++] = byte;
                 }
-                else rcv_st = START_RCV_ST;
+                else {rcv_st = START_RCV_ST; i = (int) rcv_st;}
                 break;
 
             case C_RCV_ST:
-                if (byte == FLAG_RCV) rcv_st = FLAG_RCV_ST;
-                else if (byte == (A_RCV_cmdT_ansR^C)) rcv_st = BCC_RCV_ST;
-                else rcv_st = START_RCV_ST;
+                if (byte == FLAG_RCV) {rcv_st = FLAG_RCV_ST; i = (int) rcv_st;}
+                else if (byte == (A_RCV_cmdT_ansR^frame[2])) {rcv_st = BCC_RCV_ST; frame[i++] = byte;}
+                else {rcv_st = START_RCV_ST; i = (int) rcv_st;}
                 break;
             
             case BCC_RCV_ST:
                 if (byte == FLAG_RCV) {
-                    if (frame[i - 2] == 0 || i < 400){//check_BBC2 with destuffing missing here !
-                        if (sequenceNumberI == 0) writeFrame(A_RCV_cmdT_ansR, C_RCV_RR1);
-                        else writeFrame(A_RCV_cmdT_ansR, C_RCV_RR0);
-                        
-                        rcv_st = STOP_RCV_ST;
-                        printf("RR SENT\n");
-                        return (i - 1);
-
-                    }
-                    else {
-                        if (sequenceNumberI == 0) writeFrame(A_RCV_cmdT_ansR, C_RCV_REJ1);
-                        else writeFrame(A_RCV_cmdT_ansR, C_RCV_REJ0);
-
-                        rcv_st = STOP_RCV_ST;
-                        printf("REJ SENT\n");
-                        return -1;
-                    }
+                    frame[i] = byte;
+                    rcv_st = STOP_RCV_ST;
                 }
                 else {
                     //printf("i -> %d\n",i);
@@ -332,8 +314,8 @@ int readIFrame (unsigned char* frame) {
             }
         }
     }
-    printf("FRAME RECEIVED I\n");
-    return (i - 1);
+    
+    return i - 4;
 }
 
 
@@ -370,4 +352,72 @@ unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize){
     //missing some parameters
 
     return package;
+}
+
+
+unsigned int byteStuffing (unsigned char* frame, int length)
+{
+    unsigned char aux[length + 6];
+
+    for(int i = 0; i < length + 6 ; i++){
+        aux[i] = frame[i];
+    }
+
+    // passes information from the frame to aux
+    
+    int finalLength = 4;
+    // parses aux buffer, and fills in correctly the frame buffer
+    for(int i = 4; i < (length + 6); i++){
+
+        if(aux[i] == FLAG_RCV && i != (length + 5)) {
+        frame[finalLength] = ESCAPE;
+        frame[finalLength+1] = BYTE_STUFFING_FLAG;
+        finalLength = finalLength + 2;
+        }
+        else if(aux[i] == ESCAPE && i != (length + 5)) {
+        frame[finalLength] = ESCAPE;
+        frame[finalLength+1] = BYTE_STUFFING_ESCAPE;
+        finalLength = finalLength + 2;
+        }
+        else{
+        frame[finalLength] = aux[i];
+        finalLength++;
+        }
+    }
+
+    return finalLength;
+}
+
+unsigned int byteDestuffing (unsigned char* frame, int length)
+{   
+    // allocates space for the maximum possible frame length read (length of the data packet + bcc2, already with stuffing, plus the other 5 bytes in the frame)
+    unsigned char aux[length + 5];
+
+    // copies the content of the frame (with stuffing) to the aux frame
+    for(int i = 0; i < (length + 5) ; i++) {
+        aux[i] = frame[i];
+    }
+
+    int finalLength = 4;
+
+    // iterates through the aux buffer, and fills the frame buffer with destuffed content
+    for(int i = 4; i < (length + 5); i++) {
+
+        if(aux[i] == ESCAPE){
+        if (aux[i+1] == BYTE_STUFFING_ESCAPE) {
+            frame[finalLength] = ESCAPE;
+        }
+        else if(aux[i+1] == BYTE_STUFFING_FLAG) {
+            frame[finalLength] = FLAG_RCV;
+        }
+        i++;
+        finalLength++;
+        }
+        else{
+        frame[finalLength] = aux[i];
+        finalLength++;
+        }
+    }
+
+    return finalLength;
 }
