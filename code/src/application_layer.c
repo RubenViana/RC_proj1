@@ -7,6 +7,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>  
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
@@ -26,11 +29,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     if (ll.role == LlTx) {
         printf("\n----------------llwrite----------------\n");
 
-        FILE* file;
+        int file;
         unsigned char buf[1000];
         int total;
         
-        if ((file = fopen(filename,"r")) == NULL) printf("Cannot open file\n");
+        if ((file = open(filename,O_RDONLY)) == -1) printf("Cannot open file\n");
 
         int filenameSize = strlen(filename);
 
@@ -38,34 +41,32 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         //obtain file size
         int fileSize;
-        fseek(file, 0, SEEK_END);
-        fileSize = ftell(file);
-        rewind(file);
+
+        struct stat st;
+        stat(filename, &st);
+        fileSize = st.st_size;
 
 
         unsigned char* start = controlPackageI(0, fileSize, filename, filenameSize, &controlPacketSize);
         unsigned char* end = controlPackageI(1, fileSize, filename, filenameSize, &controlPacketSize);
 
-        FILE* t;
-
+        int t;
+        t = open("test.gif",O_WRONLY);                      //for testing while not finish
         llwrite(start, sizeof(start));
 
-        while (!feof(file)){
-            int bytesRead = fread(buf, sizeof(unsigned char), 900, file);
-
+        int bytesRead;
+        while ((bytesRead = read(file, buf, 400)) > 0){
+            write(t, buf, bytesRead);//for testing
             unsigned char* data = dataPackageI(buf, fileSize, &bytesRead);
             int bytesWrite = llwrite(data, bytesRead);
             printf("%d bytes sent\n", bytesWrite);
             total += bytesWrite;
-            
-            t = fopen("test.gif","w");                      //for testing while not finish
-            fwrite(buf, sizeof(unsigned char), bytesRead, t);
         }
-        fclose(file);
+        close(file);
 
         llwrite(end, sizeof(end));
 
-        fclose(t);
+        close(t);
         
         printf("TOTAL -> %d",total);
     }
@@ -73,11 +74,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     else if (ll.role == LlRx) {
         printf("\n----------------llread----------------\n");
 
-        FILE* file;
+        int file;
         unsigned char packet[1000];
         int bytesRead;
 
-        if ((file = fopen(filename,"w")) == NULL) printf("Cannot open file\n");
+        if ((file = open(filename,O_WRONLY)) == -1) printf("Cannot open file\n");
 
         while (1){
             if ((bytesRead = llread (packet)) > 0){
@@ -90,13 +91,13 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 }
                 else if (packet[0] == 0x01){//NOT IMPLEMENTED
                     printf("received header data packet\n");
-                    fwrite(packet + 4, sizeof(unsigned char), bytesRead, file);
+                    write(file, packet + 4, bytesRead);
                 }
             }
             printf("%d bytes received\n", bytesRead);
             
         }
-        fclose(file);
+        close(file);
     }
 
 
