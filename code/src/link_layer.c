@@ -12,7 +12,10 @@
 #include <termios.h>
 #include <unistd.h>
 
-
+int receivedFrames;
+int sentFrames;
+int nTimeouts;
+//missing some ...
 
 
 int fd;
@@ -114,7 +117,7 @@ int llread(unsigned char *packet)
 
     while (!isBufferFull){
         readValue = readIFrame(frame);
-        printf("FRAME RECEIVED I\n");
+        //printf("FRAME RECEIVED I\n");
 
         numBytes = byteDestuffing(frame, readValue);
 
@@ -216,6 +219,13 @@ int llclose(int showStatistics)
         if (readFrame(A_RCV_cmdT_ansR,C_RCV_DISC) == 1) 
             if (writeFrame(A_RCV_cmdT_ansR, C_RCV_DISC) == 1)
                 if (readFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
+
+                    //print statistics
+                    printf("Received Frames: %d\n", receivedFrames);
+                    printf("Sent Frames: %d\n", sentFrames);
+                    printf("Number Timeouts: %d\n", nTimeouts);
+
+
                     // Restore the old port settings
                     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
                     {
@@ -229,6 +239,12 @@ int llclose(int showStatistics)
     else if (connectionParameters.role == LlTx){
         if (writeReadWithRetr(A_RCV_cmdT_ansR,C_RCV_DISC,A_RCV_cmdT_ansR,C_RCV_DISC) == 1) 
             if (writeFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
+
+                //print statistics
+                printf("Received Frames: %d\n", receivedFrames);
+                printf("Sent Frames: %d\n", sentFrames);
+                printf("Number Timeouts: %d\n", nTimeouts);
+
                 // Restore the old port settings
                 if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
                 {

@@ -13,6 +13,10 @@ extern int alarmEnabled;
 extern int alarmCount;
 extern int sequenceNumberI;
 
+extern int receivedFrames;
+extern int sentFrames;
+extern int nTimeouts;
+
 int writeFrame (unsigned int A_RCV, unsigned int C_RCV){
 
     unsigned char frame[CMD_ANS_FRAME_SIZE];
@@ -25,7 +29,8 @@ int writeFrame (unsigned int A_RCV, unsigned int C_RCV){
 
     int bytes = write(fd, frame, CMD_ANS_FRAME_SIZE);
 
-    printf("FRAME SENT  C->%x\n",C_RCV);
+    //printf("FRAME SENT  C->%x\n",C_RCV);
+    sentFrames++;
     if (bytes > 0) return 1;
     return -1;
 }
@@ -77,7 +82,8 @@ int readFrame (unsigned int A_RCV, unsigned int C_RCV){
             }
         }
     }
-    printf("FRAME RECEIVED  C->%x\n",C_RCV);
+    //printf("FRAME RECEIVED  C->%x\n",C_RCV);
+    receivedFrames++;
     return 1;
 }
 
@@ -98,6 +104,7 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
         {
             writeFrame(A_RCV_w,C_RCV_w);
             alarm(connectionParameters.timeout);
+            nTimeouts+=alarmCount;
             alarmEnabled = TRUE;
             rcv_st = START_RCV_ST;
         }
@@ -132,7 +139,7 @@ int writeReadWithRetr(unsigned int A_RCV_w, unsigned int C_RCV_w, unsigned int A
                 break;
             
             case BCC_RCV_ST:
-                if (byte == FLAG_RCV) {rcv_st = STOP_RCV_ST; printf("FRAME RECEIVED  C->%x\n",C_RCV_r); return 1;}
+                if (byte == FLAG_RCV) {rcv_st = STOP_RCV_ST; receivedFrames++;/* printf("FRAME RECEIVED  C->%x\n",C_RCV_r);*/ return 1;}
                 else rcv_st = START_RCV_ST;
                 break;
 
@@ -184,8 +191,10 @@ int writeIFrame (unsigned char* frame, int frameSize) {
         if (alarmEnabled == FALSE || retr == TRUE)
         {
             write(fd, frame, frameSize);
-            printf("FRAME SENT I\n");
+            //printf("FRAME SENT I\n");
             alarm(connectionParameters.timeout);
+            sentFrames++;
+            nTimeouts+=alarmCount;
             alarmEnabled = TRUE;
             retr = FALSE;
             rcv_st = START_RCV_ST;
@@ -227,12 +236,13 @@ int writeIFrame (unsigned char* frame, int frameSize) {
                 if (byte == FLAG_RCV) {
                     //rcv_st = STOP_RCV_ST;
                     if ((C == C_RCV_RR0 && sequenceNumberI == 1) || (C == C_RCV_RR1 && sequenceNumberI == 0)){
-                        printf("FRAME RECEIVED RR\n");
+                        //printf("FRAME RECEIVED RR\n");
                         sequenceNumberI ^= 1;
+                        receivedFrames++;
                         return 1;
                     }
                     else if ((C == C_RCV_REJ0) || (C == C_RCV_REJ1)){
-                        printf("FRAME RECEIVED REJ\n");
+                        //printf("FRAME RECEIVED REJ\n");
                         retr = TRUE;
                         alarmCount++;
                         break;
@@ -314,7 +324,7 @@ int readIFrame (unsigned char* frame) {
             }
         }
     }
-    
+    receivedFrames++;
     return i - 4;
 }
 
@@ -338,17 +348,18 @@ unsigned char* controlPackageI (int st, int fileSize, const char* fileName, int 
     return package;
 }
 
-unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize){
+unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize, int* nMessage){
     unsigned char* package = (unsigned char*)malloc(*packetSize + 4);
     package[0] = 0x01;
-    package[1] = 0; //nº messages % 255
-    package[2] = 0; //l2
-    package[3] = 0; //l1
+    package[1] = *nMessage % 255; //nº messages % 255
+    package[2] = *packetSize/256; //l2
+    package[3] = *packetSize % 256; //l1
 
     memcpy(package + 4, buf, *packetSize);
 
     *packetSize += 4;
 
+    nMessage ++;
     //missing some parameters
 
     return package;
@@ -420,4 +431,21 @@ unsigned int byteDestuffing (unsigned char* frame, int length)
     }
 
     return finalLength;
+}
+
+const int PROGRESS_BAR_LENGTH = 51;
+
+void printProgressBar(float current, float total) {
+    float percentage = current / total;
+
+    char op = (sequenceNumberI == 0) ? '/' : '\\';
+    printf("\r[%c]  [", op);
+
+    int i, len = PROGRESS_BAR_LENGTH;
+    int pos = percentage * len ;
+
+    for (i = 0; i < len; i++)
+        i <= pos ? printf("#") : printf(" ");
+
+    printf("]%6.2f%%\n", percentage*100);
 }

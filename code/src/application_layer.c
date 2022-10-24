@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>  
+    
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
@@ -22,16 +23,21 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     if (strcmp(role,"rx") == 0) ll.role = LlRx;
     if (strcmp(role,"tx") == 0) ll.role = LlTx;
 
-    printf("\n----------------llopen----------------\n");
-    llopen(ll);
+    sleep(1);
+
+    if(llopen(ll) == -1){
+        perror("llopen fail");
+    }
+    printf("\n[/] LLOPEN ESTABLISHED\n");
 
 
     if (ll.role == LlTx) {
-        printf("\n----------------llwrite----------------\n");
+        printf("\n[/] STARTING FILE TRANSFER\n");
 
         int file;
         unsigned char buf[1000];
-        int totalSent;
+        float totalSent;
+        int nMessage = 0;
         
         if ((file = open(filename,O_RDONLY)) == -1) printf("Cannot open file\n");
 
@@ -54,16 +60,17 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         
         llwrite(start, sizeof(start));
         while ((bytesRead = read(file, buf, 256)) > 0){
-            unsigned char* data = dataPackageI(buf, fileSize, &bytesRead);
+            unsigned char* data = dataPackageI(buf, fileSize, &bytesRead, &nMessage);
             int bytesWrite = llwrite(data, bytesRead);
-            //printf("%d bytes sent\n", bytesWrite);
+            printProgressBar(totalSent, fileSize);
             totalSent += bytesWrite;
+            //sleep(1);
         }
         close(file);
 
         llwrite(end, sizeof(end));
         
-        printf("total bytes sent: %d", totalSent);
+        printf("total bytes sent: %f\n", totalSent);
     }
 
     else if (ll.role == LlRx) {
@@ -72,37 +79,37 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int file;
         unsigned char packet[1000];
         int bytesRead;
-        int totalReceived;
+        float totalReceived;
 
         if ((file = open(filename,O_WRONLY | O_CREAT)) == -1) printf("Cannot open file\n");
 
         while (1){
             if ((bytesRead = llread (packet)) > 0){
                 if (packet[0] == 0x02){
-                    printf("receive start data packet\n");  //NOT FINISHED
+                    //printf("receive start data packet\n");
+                    //get file size from here
                 }
                 else if (packet[0] == 0x03){
-                    printf("received end data packet\n");
+                    //printf("received end data packet\n");
                     break;
                 }
                 else if (packet[0] == 0x01){//NOT IMPLEMENTED
-                    printf("received header data packet\n");
+                    //printf("received header data packet\n");
                     write(file, &packet[4], bytesRead - 4);
                 }
                 //printf("%d bytes received\n", bytesRead);
                 totalReceived += bytesRead;
+                printProgressBar(bytesRead, totalReceived);
             }
 
             
         }
         close(file);
-        printf("total bytes received: %d", totalReceived);
+        printf("total bytes received: %f\n", totalReceived);
     }
 
-
-    printf("\n----------------llclose----------------\n");
-    llclose(0);
-
-    printf("END APP\n");
-
+    if (llclose(0) == -1){
+        perror("llclose fail");
+    }
+    printf("\n[/] LLCLOSE ESTABLISHED\n");
 }

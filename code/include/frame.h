@@ -42,10 +42,12 @@ int readIFrame (unsigned char* frame);
 
 unsigned char* controlPackageI (int st, int fileSize, const char* fileName, int fileNameSize, int* controlPackageSize);
 
-unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize);
+unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize, int* nMessage);
 
 unsigned int byteStuffing (unsigned char* frame, int length);
 
 unsigned int byteDestuffing (unsigned char* frame, int length);
+
+void printProgressBar(float current, float total);
 
 #endif // _FRAME_H_
