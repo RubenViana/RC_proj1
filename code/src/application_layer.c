@@ -105,7 +105,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 else if (packet[0] == 0x01){//NOT IMPLEMENTED
                     //printf("received header data packet\n");
                     write(file, &packet[4], bytesRead - 4);
-                    n = packet[1];
+                    n = (n + 1 < 255) ? packet[1] : packet[1] + 255;
                 }
                 //printf("%d bytes received\n", bytesRead);
             }
