@@ -22,6 +22,7 @@
 #define BYTE_STUFFING_ESCAPE 0x5D
 #define BYTE_STUFFING_FLAG 0x5E
 #define DATA_START 4
+#define CLEAR_SCREEN system("clear")
 
 
 typedef enum {START_RCV_ST, FLAG_RCV_ST, A_RCV_ST, C_RCV_ST, BCC_RCV_ST, STOP_RCV_ST} RCV_STATE;
@@ -48,6 +49,6 @@ unsigned int byteStuffing (unsigned char* frame, int length);
 
 unsigned int byteDestuffing (unsigned char* frame, int length);
 
-void printProgressBar(float current, float total);
+void printProgressBar(float current, float total, int n);
 
 #endif // _FRAME_H_

@@ -36,7 +36,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         int file;
         unsigned char buf[1000];
-        float totalSent;
+        float totalSent = 0;
         int nMessage = 0;
         
         if ((file = open(filename,O_RDONLY)) == -1) printf("Cannot open file\n");
@@ -52,7 +52,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         stat(filename, &st);
         fileSize = st.st_size;
 
-
         unsigned char* start = controlPackageI(0, fileSize, filename, filenameSize, &controlPacketSize);
         unsigned char* end = controlPackageI(1, fileSize, filename, filenameSize, &controlPacketSize);
 
@@ -62,32 +61,42 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         while ((bytesRead = read(file, buf, 256)) > 0){
             unsigned char* data = dataPackageI(buf, fileSize, &bytesRead, &nMessage);
             int bytesWrite = llwrite(data, bytesRead);
-            printProgressBar(totalSent, fileSize);
-            totalSent += bytesWrite;
-            //sleep(1);
+            printProgressBar(totalSent, fileSize, nMessage);
+            totalSent += bytesWrite - 4;
+            nMessage++;
+            sleep(1);
         }
         close(file);
 
         llwrite(end, sizeof(end));
         
-        printf("total bytes sent: %f\n", totalSent);
+        //printf("total bytes sent: %f\n", totalSent);
     }
 
     else if (ll.role == LlRx) {
-        printf("\n----------------llread----------------\n");
 
         int file;
         unsigned char packet[1000];
         int bytesRead;
-        float totalReceived;
+        float totalReceived = 0;
+        int fileSize;
+        int n = 0;
 
         if ((file = open(filename,O_WRONLY | O_CREAT)) == -1) printf("Cannot open file\n");
 
         while (1){
             if ((bytesRead = llread (packet)) > 0){
+                printProgressBar(totalReceived, fileSize, n);
+                totalReceived += bytesRead;
+
                 if (packet[0] == 0x02){
                     //printf("receive start data packet\n");
                     //get file size from here
+                    int len = (int)packet[2];
+                    for (int i = 0; i < len; i++)
+                    {
+                        fileSize = fileSize * 256 + (int)packet[3 + i];
+                    }
                 }
                 else if (packet[0] == 0x03){
                     //printf("received end data packet\n");
@@ -96,20 +105,19 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 else if (packet[0] == 0x01){//NOT IMPLEMENTED
                     //printf("received header data packet\n");
                     write(file, &packet[4], bytesRead - 4);
+                    n = packet[1];
                 }
                 //printf("%d bytes received\n", bytesRead);
-                totalReceived += bytesRead;
-                printProgressBar(bytesRead, totalReceived);
             }
 
             
         }
         close(file);
-        printf("total bytes received: %f\n", totalReceived);
+        //printf("total bytes received: %f\n", totalReceived);
     }
 
     if (llclose(0) == -1){
         perror("llclose fail");
     }
-    printf("\n[/] LLCLOSE ESTABLISHED\n");
+    printf("\n[+] LLCLOSE ESTABLISHED\n");
 }

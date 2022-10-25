@@ -221,6 +221,7 @@ int llclose(int showStatistics)
                 if (readFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
 
                     //print statistics
+                    printf("CONNECTION STATS\n");
                     printf("Received Frames: %d\n", receivedFrames);
                     printf("Sent Frames: %d\n", sentFrames);
                     printf("Number Timeouts: %d\n", nTimeouts);
@@ -241,6 +242,7 @@ int llclose(int showStatistics)
             if (writeFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
 
                 //print statistics
+                printf("CONNECTION STATS\n");
                 printf("Received Frames: %d\n", receivedFrames);
                 printf("Sent Frames: %d\n", sentFrames);
                 printf("Number Timeouts: %d\n", nTimeouts);

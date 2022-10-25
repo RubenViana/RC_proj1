@@ -358,9 +358,7 @@ unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize, 
     memcpy(package + 4, buf, *packetSize);
 
     *packetSize += 4;
-
-    nMessage ++;
-    //missing some parameters
+    printf("nMess %d", *nMessage);
 
     return package;
 }
@@ -435,17 +433,33 @@ unsigned int byteDestuffing (unsigned char* frame, int length)
 
 const int PROGRESS_BAR_LENGTH = 51;
 
-void printProgressBar(float current, float total) {
-    float percentage = current / total;
+void printProgressBar(float current, float total, int n) {
+    
+    CLEAR_SCREEN;
+
+    printf("[+] LLOPEN ESTABLISHED\n");
+    printf("\n[+] STARTING FILE TRANSFER ...\n\n");
+
+    float percentage = 0;
+    percentage = (current / total)*100;
+    percentage = (percentage > 100) ? 100 : percentage;
 
     char op = (sequenceNumberI == 0) ? '/' : '\\';
-    printf("\r[%c]  [", op);
+    if (percentage == 100) op = '+';
+    printf("\r[%c] [", op);
 
     int i, len = PROGRESS_BAR_LENGTH;
-    int pos = percentage * len ;
+    int pos = (percentage/100) * len ;
 
     for (i = 0; i < len; i++)
         i <= pos ? printf("#") : printf(" ");
 
-    printf("]%6.2f%%\n", percentage*100);
+    printf("]%6.2f%%\n\n", percentage);
+
+    if (connectionParameters.role == LlTx){
+        printf("    Sending Packet %d ...\n", n);
+    }
+    else if (connectionParameters.role == LlRx){
+        printf("    Receiving Packet %d\n\n", n);       
+    }
 }
