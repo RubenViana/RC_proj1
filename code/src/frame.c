@@ -358,7 +358,7 @@ unsigned char* dataPackageI (unsigned char* buf, int fileSize, int* packetSize, 
     memcpy(package + 4, buf, *packetSize);
 
     *packetSize += 4;
-    printf("nMess %d", *nMessage);
+    //printf("nMess %d", *nMessage);
 
     return package;
 }
