@@ -27,6 +27,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     if(llopen(ll) == -1){
         perror("llopen fail");
+        return;
     }
     printf("\n[/] LLOPEN ESTABLISHED\n");
 
@@ -61,10 +62,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         while ((bytesRead = read(file, buf, 256)) > 0){
             unsigned char* data = dataPackageI(buf, fileSize, &bytesRead, &nMessage);
             int bytesWrite = llwrite(data, bytesRead);
+            if (bytesWrite == -1) return;
             printProgressBar(totalSent, fileSize, nMessage);
             totalSent += bytesWrite - 4;
             nMessage++;
-            sleep(1);
+            //sleep(1);
         }
         close(file);
 
@@ -118,6 +120,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     if (llclose(0) == -1){
         perror("llclose fail");
+        return;
     }
     printf("\n[+] LLCLOSE ESTABLISHED\n");
 }

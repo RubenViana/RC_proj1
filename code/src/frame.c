@@ -457,7 +457,7 @@ void printProgressBar(float current, float total, int n) {
     printf("]%6.2f%%\n\n", percentage);
 
     if (connectionParameters.role == LlTx){
-        printf("    Sending Packet %d ...\n", n);
+        printf("    Sending Packet %d\n\n", n);
     }
     else if (connectionParameters.role == LlRx){
         printf("    Receiving Packet %d\n\n", n);       

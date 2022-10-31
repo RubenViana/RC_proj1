@@ -101,7 +101,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     if (writeIFrame(buffer ,bufStuffedSize) == 1) return bufStuffedSize;
 
-    return 0;
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -221,10 +221,10 @@ int llclose(int showStatistics)
                 if (readFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
 
                     //print statistics
-                    printf("CONNECTION STATS\n");
-                    printf("Received Frames: %d\n", receivedFrames);
-                    printf("Sent Frames: %d\n", sentFrames);
-                    printf("Number Timeouts: %d\n", nTimeouts);
+                    printf("[!] CONNECTION STATS\n");
+                    printf("    --Received Frames: %d\n", receivedFrames);
+                    printf("    --Sent Frames: %d\n", sentFrames);
+                    printf("    --Number Timeouts: %d\n", nTimeouts);
 
 
                     // Restore the old port settings
@@ -242,10 +242,10 @@ int llclose(int showStatistics)
             if (writeFrame(A_RCV_cmdT_ansR, C_RCV_UA) == 1){
 
                 //print statistics
-                printf("CONNECTION STATS\n");
-                printf("Received Frames: %d\n", receivedFrames);
-                printf("Sent Frames: %d\n", sentFrames);
-                printf("Number Timeouts: %d\n", nTimeouts);
+                printf("[!] CONNECTION STATS\n");
+                printf("    --Received Frames: %d\n", receivedFrames);
+                printf("    --Sent Frames: %d\n", sentFrames);
+                printf("    --Number Timeouts: %d\n", nTimeouts);
 
                 // Restore the old port settings
                 if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
